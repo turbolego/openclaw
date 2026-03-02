@@ -241,12 +241,28 @@ export async function monitorTelegramProvider(opts: MonitorTelegramOpts = {}) {
       if (webhookCleared) {
         return "ready";
       }
+      const cleanupTimeoutMs = 15_000;
       try {
-        await withTelegramApiErrorLogging({
-          operation: "deleteWebhook",
-          runtime: opts.runtime,
-          fn: () => bot.api.deleteWebhook({ drop_pending_updates: false }),
-        });
+        let timeoutHandle: NodeJS.Timeout | undefined;
+        try {
+          await Promise.race([
+            withTelegramApiErrorLogging({
+              operation: "deleteWebhook",
+              runtime: opts.runtime,
+              fn: () => bot.api.deleteWebhook({ drop_pending_updates: false }),
+            }),
+            new Promise<never>((_, reject) => {
+              timeoutHandle = setTimeout(() => {
+                reject(new Error(`deleteWebhook timeout after ${cleanupTimeoutMs}ms`));
+              }, cleanupTimeoutMs);
+            }),
+          ]);
+        } finally {
+          if (timeoutHandle) {
+            clearTimeout(timeoutHandle);
+          }
+        }
+
         webhookCleared = true;
         return "ready";
       } catch (err) {
