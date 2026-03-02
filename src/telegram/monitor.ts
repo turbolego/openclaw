@@ -233,7 +233,7 @@ export async function monitorTelegramProvider(opts: MonitorTelegramOpts = {}) {
         if (!shouldRetry) {
           return undefined;
         }
-        return undefined;
+        return await createPollingBot();
       }
     };
 
